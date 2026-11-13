@@ -3,17 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "dev": "node build-css.js && next dev --webpack",
+    "build": "node build-css.js && next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@heroui/react": "^3.2.7",
     "@supabase/supabase-js": "^2.119.0",
+    "@tailwindcss/postcss": "^4.3.5",
     "framer-motion": "^14.12.0",
     "lucide-react": "^1.72.0",
     "next": "16.4.3",
+    "postcss": "^8.5.32",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
