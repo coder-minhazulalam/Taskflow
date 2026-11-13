@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata = {
   title: "TaskFlow - Modern Project & Task Management",
@@ -12,7 +13,9 @@ export default function RootLayout({ children }) {
         <link rel="stylesheet" href="/styles.css" />
       </head>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

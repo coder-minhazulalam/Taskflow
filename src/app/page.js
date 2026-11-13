@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { taskService } from "@/services/taskService";
+import { useAuth } from "@/context/AuthContext";
 import { 
   CheckCircle2, 
   Clock, 
@@ -24,7 +25,9 @@ import {
   Filter,
   Tag,
   RefreshCw,
-  Server
+  Server,
+  LogOut,
+  UserCircle
 } from "lucide-react";
 
 // বাস্তবসম্মত প্রজেক্ট ও টাস্ক ডেটা (কোনো টেকনিক্যাল জার্গন ছাড়া)
@@ -102,6 +105,7 @@ const INITIAL_TASKS = [
 ];
 
 export default function Home() {
+  const { user, logout, loading: authLoading } = useAuth();
   const [tasks, setTasks] = useState(INITIAL_TASKS);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
@@ -183,8 +187,8 @@ export default function Home() {
       categoryColor: "bg-blue-100 text-blue-700 border-blue-200",
       tags: newTaskTags.split(",").map((t) => t.trim()).filter(Boolean),
       dueDate: "Dec 10, 2026",
-      assignee: "You",
-      assigneeAvatar: "YO",
+      assignee: user ? user.name : "You",
+      assigneeAvatar: user?.name ? user.name.slice(0, 2).toUpperCase() : "YO",
       avatarBg: "bg-indigo-600"
     };
 
@@ -202,6 +206,7 @@ export default function Home() {
         priority: localTask.priority,
         category: localTask.category,
         tags: localTask.tags,
+        userId: user?.id,
       });
       if (serverTask && serverTask.id) {
         setTasks((prev) => prev.map((t) => (t.id === localTask.id ? { ...t, id: serverTask.id } : t)));
@@ -256,20 +261,42 @@ export default function Home() {
             <a href="#about" className="hover:text-blue-600 transition-colors">About Us</a>
           </nav>
 
-          {/* User Auth Buttons */}
+          {/* User Auth Buttons & Profile */}
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="text-sm font-semibold text-slate-700 hover:text-slate-900 px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/register"
-              className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg shadow-sm shadow-blue-500/25 transition-all hover:shadow-md"
-            >
-              Get Started Free
-            </Link>
+            {authLoading ? (
+              <div className="w-24 h-9 bg-slate-200 rounded-lg animate-pulse" />
+            ) : user ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 text-xs font-semibold">
+                  <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-[10px]">
+                    {user.name ? user.name.slice(0, 2).toUpperCase() : "U"}
+                  </div>
+                  <span className="hidden sm:inline font-bold">{user.name}</span>
+                </div>
+                <button
+                  onClick={logout}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-2 rounded-lg border border-rose-200 transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Sign Out</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="text-sm font-semibold text-slate-700 hover:text-slate-900 px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/register"
+                  className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg shadow-sm shadow-blue-500/25 transition-all hover:shadow-md"
+                >
+                  Get Started Free
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
