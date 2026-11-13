@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { taskService } from "@/services/taskService";
 import { 
   CheckCircle2, 
   Clock, 
@@ -21,7 +22,9 @@ import {
   ChevronRight,
   X,
   Filter,
-  Tag
+  Tag,
+  RefreshCw,
+  Server
 } from "lucide-react";
 
 // বাস্তবসম্মত প্রজেক্ট ও টাস্ক ডেটা (কোনো টেকনিক্যাল জার্গন ছাড়া)
@@ -103,6 +106,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [backendOnline, setBackendOnline] = useState(false);
 
   // New task form state
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -110,6 +115,45 @@ export default function Home() {
   const [newTaskPriority, setNewTaskPriority] = useState("MEDIUM");
   const [newTaskCategory, setNewTaskCategory] = useState("Marketing");
   const [newTaskTags, setNewTaskTags] = useState("Design, Strategy");
+
+  // Load tasks from backend on mount
+  const loadTasksFromBackend = async () => {
+    setIsLoading(true);
+    try {
+      const liveTasks = await taskService.getAllTasks();
+      if (liveTasks && liveTasks.length > 0) {
+        // Map backend tasks to frontend format
+        const formatted = liveTasks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description || "No description provided.",
+          status: t.status || "TODO",
+          priority: t.priority || "MEDIUM",
+          category: t.category || "General",
+          categoryColor: "bg-blue-100 text-blue-700 border-blue-200",
+          tags: Array.isArray(t.tags) ? t.tags : ["General"],
+          dueDate: t.due_date ? new Date(t.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "No due date",
+          assignee: "You",
+          assigneeAvatar: "YO",
+          avatarBg: "bg-indigo-600"
+        }));
+        setTasks(formatted);
+        setBackendOnline(true);
+      } else if (liveTasks && liveTasks.length === 0) {
+        setBackendOnline(true);
+      } else {
+        setBackendOnline(false);
+      }
+    } catch {
+      setBackendOnline(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTasksFromBackend();
+  }, []);
 
   // Filtering
   const filteredTasks = tasks.filter((t) => {
@@ -125,11 +169,11 @@ export default function Home() {
   const inProgressTasks = tasks.filter((t) => t.status === "IN_PROGRESS").length;
   const completedTasks = tasks.filter((t) => t.status === "COMPLETED").length;
 
-  const handleCreateTask = (e) => {
+  const handleCreateTask = async (e) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
 
-    const newTask = {
+    const localTask = {
       id: `task-${Date.now()}`,
       title: newTaskTitle,
       description: newTaskDesc || "No description provided.",
@@ -144,18 +188,45 @@ export default function Home() {
       avatarBg: "bg-indigo-600"
     };
 
-    setTasks([newTask, ...tasks]);
+    // Optimistically update UI
+    setTasks([localTask, ...tasks]);
     setNewTaskTitle("");
     setNewTaskDesc("");
     setIsModalOpen(false);
+
+    // If backend is available, sync with Express -> Supabase
+    try {
+      const serverTask = await taskService.createTask({
+        title: localTask.title,
+        description: localTask.description,
+        priority: localTask.priority,
+        category: localTask.category,
+        tags: localTask.tags,
+      });
+      if (serverTask && serverTask.id) {
+        setTasks((prev) => prev.map((t) => (t.id === localTask.id ? { ...t, id: serverTask.id } : t)));
+      }
+    } catch {
+      // Backend sync failed or running offline, keep local state
+    }
   };
 
-  const handleStatusChange = (taskId, newStatus) => {
+  const handleStatusChange = async (taskId, newStatus) => {
     setTasks(tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
+    try {
+      await taskService.updateTask(taskId, { status: newStatus });
+    } catch {
+      // Offline fallback
+    }
   };
 
-  const handleDeleteTask = (taskId) => {
+  const handleDeleteTask = async (taskId) => {
     setTasks(tasks.filter((t) => t.id !== taskId));
+    try {
+      await taskService.deleteTask(taskId);
+    } catch {
+      // Offline fallback
+    }
   };
 
   return (
@@ -264,15 +335,34 @@ export default function Home() {
         {/* Dashboard Title & Actions Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-              Project Task Board
-            </h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+                Project Task Board
+              </h2>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                backendOnline 
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                  : "bg-slate-100 text-slate-600 border-slate-200"
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${backendOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+                {backendOnline ? "Express API & Supabase Connected" : "Local Workspace Mode"}
+              </span>
+            </div>
             <p className="text-sm text-slate-500 mt-1">
-              Manage your daily deliverables, monitor ongoing sprints, and update status.
+              Manage your daily deliverables, monitor ongoing sprints, and update status in real time.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* Refresh from Backend button */}
+            <button
+              onClick={loadTasksFromBackend}
+              disabled={isLoading}
+              title="Sync with Backend"
+              className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            </button>
             {/* Search Box */}
             <div className="relative w-full sm:w-64">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
